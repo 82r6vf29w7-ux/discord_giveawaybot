@@ -76,7 +76,7 @@ export default {
       });
     }
 
-    // Verify the participant has exactly one valid ticket role.
+    // Verify that the participant has exactly one valid ticket.
     const ticket = getRaffleTicket(member);
 
     if (!ticket) {
@@ -89,10 +89,15 @@ export default {
 
     const fast = isFirstClick(giveaway);
 
+    // Save the ticket role and its weight for this giveaway.
     const action = await addOrRemoveEntry(
       id,
       interaction.user.id,
-      { toggle: !fast }
+      {
+        toggle: !fast,
+        ticketWeight: ticket.weight,
+        ticketRoleId: ticket.roleId,
+      }
     );
 
     const key = {
@@ -103,7 +108,10 @@ export default {
 
     if (fast) {
       const reply = interaction.reply({
-        content: t(guildId, key),
+        content:
+          action === 'added'
+            ? `You joined the raffle with your ${ticket.name} (${ticket.weight} entries)!`
+            : t(guildId, key),
         flags: MessageFlags.Ephemeral,
       });
 
