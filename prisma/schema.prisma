@@ -1,5 +1,5 @@
-// Prisma schema — Discord Giveaway Bot
-// MariaDB / MySQL
+// Prisma schema - Discord Giveaway Bot
+// MariaDB uses the MySQL protocol.
 
 generator client {
   provider = "prisma-client-js"
@@ -11,23 +11,22 @@ datasource db {
 }
 
 model GuildSettings {
-  guildId         String   @id
-  lang            String   @default("en")
-  embedColor      String   @default("#00e676")
-  buttonEmoji     String   @default("🎉")
-  buttonStyle     String   @default("PRIMARY")
-  blacklist       String   @default("[]") @db.Text
-  whitelist       String   @default("[]") @db.Text
-  bonusRoles      String   @default("{}") @db.Text
-  minAccountDays  Int      @default(0)
-  minMemberDays   Int      @default(0)
-  managerRole     String?
-  notifyRole      String?
-  logChannel      String?
-  reminderMinutes Int      @default(0)
-  claimMessage    String?  @db.Text
+  guildId          String   @id
+  lang             String   @default("en")
+  embedColor       String   @default("#00e676")
+  buttonEmoji      String   @default("🎉")
+  buttonStyle      String   @default("PRIMARY")
+  blacklist        String   @default("[]") @db.Text
+  whitelist        String   @default("[]") @db.Text
+  bonusRoles       String   @default("{}") @db.Text
+  minAccountDays   Int      @default(0)
+  minMemberDays    Int      @default(0)
+  managerRole      String?
+  notifyRole       String?
+  logChannel       String?
+  reminderMinutes  Int      @default(0)
+  claimMessage     String?  @db.Text
 
-  // Tebex
   tebexSecret      String?   @db.Text
   tebexSecretHint  String?
   tebexSecretSetAt DateTime?
@@ -39,66 +38,59 @@ model GuildSettings {
 }
 
 model GiveawayTemplate {
-  id           Int      @id @default(autoincrement())
-  guildId      String
-  name         String
-  title        String
-  description  String   @db.Text
-  duration     String
-  winnersCount Int      @default(1)
-  prizes       String   @default("[]") @db.Text
-  prizeMode    String   @default("ALL")
-  winnerMode   String   @default("RANDOM")
-
-  blacklistRoles String? @db.Text
-  whitelistRoles String? @db.Text
-  bonusRoles     String? @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  id             Int      @id @default(autoincrement())
+  guildId        String
+  name           String
+  title          String
+  description    String   @db.Text
+  duration       String
+  winnersCount   Int      @default(1)
+  prizes         String   @default("[]") @db.Text
+  prizeMode      String   @default("ALL")
+  winnerMode     String   @default("RANDOM")
+  blacklistRoles String?  @db.Text
+  whitelistRoles String?  @db.Text
+  bonusRoles     String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
 
   @@unique([guildId, name])
 }
 
 model Giveaway {
-  id          String   @id
-  guildId     String
-  channelId   String
-  messageId   String?
-  hostId      String
-  title       String
-  description String   @db.Text
+  id             String   @id
+  guildId        String
+  channelId      String
+  messageId      String?
+  hostId         String
+  title          String
+  description    String   @db.Text
 
-  // Prizes
-  prizes       String @default("[]") @db.Text
-  prizeMode    String @default("ALL")
-  winnerMode   String @default("RANDOM")
-  winnersCount Int    @default(1)
+  prizes         String   @default("[]") @db.Text
+  prizeMode      String   @default("ALL")
+  winnerMode     String   @default("RANDOM")
+  winnersCount   Int      @default(1)
 
-  // Status
-  endAt        DateTime
-  status       String    @default("ACTIVE")
-  pausedAt     DateTime?
-  reminderAt   DateTime?
-  reminderSent Boolean   @default(false)
+  endAt          DateTime
+  status         String   @default("ACTIVE")
+  pausedAt       DateTime?
+  reminderAt     DateTime?
+  reminderSent   Boolean  @default(false)
 
-  // Eligibility
   blacklistRoles String? @db.Text
   whitelistRoles String? @db.Text
   bonusRoles     String? @db.Text
 
-  // Tebex coupons
   couponPercent          Int?
-  couponPackages         String  @default("[]") @db.Text
-  couponPackagesPerPrize String  @default("[]") @db.Text
+  couponPackages         String @default("[]") @db.Text
+  couponPackagesPerPrize String @default("[]") @db.Text
   couponValidDays        Int?
 
-  // Manual coupon codes
-  couponManualCode          String?
-  couponManualCodesPerPrize String  @default("[]") @db.Text
-  couponManualNote          String? @db.Text
+  couponManualCode           String?
+  couponManualCodesPerPrize  String @default("[]") @db.Text
+  couponManualNote           String? @db.Text
 
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
   endedAt   DateTime?
 
   entries Entry[]
@@ -119,11 +111,7 @@ model GiveawayCoupon {
   revokedAt  DateTime?
   createdAt  DateTime @default(now())
 
-  giveaway Giveaway @relation(
-    fields: [giveawayId],
-    references: [id],
-    onDelete: Cascade
-  )
+  giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
 
   @@id([giveawayId, userId])
   @@index([code])
@@ -134,7 +122,7 @@ model Entry {
   userId     String
   joinedAt   DateTime @default(now())
 
-  // After Dark Entertainment - Ticket System
+  // After Dark Entertainment - Raffle Ticket System
   // Standard: 1 chance
   // Priority: 3 chances
   // Premium: 5 chances
@@ -142,11 +130,7 @@ model Entry {
   ticketWeight Int     @default(1)
   ticketRoleId String?
 
-  giveaway Giveaway @relation(
-    fields: [giveawayId],
-    references: [id],
-    onDelete: Cascade
-  )
+  giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
 
   @@id([giveawayId, userId])
   @@index([giveawayId, joinedAt])
@@ -158,11 +142,7 @@ model Winner {
   prizeIndex Int      @default(0)
   drawnAt    DateTime @default(now())
 
-  giveaway Giveaway @relation(
-    fields: [giveawayId],
-    references: [id],
-    onDelete: Cascade
-  )
+  giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
 
   @@id([giveawayId, userId])
 }
