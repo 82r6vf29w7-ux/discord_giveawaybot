@@ -91,7 +91,7 @@ model Giveaway {
   //   RANDOM      = a draw at the end (Fisher-Yates, with bonus entries)
   //   FIRST_CLICK = whoever clicks first wins. The first `winnersCount` valid
   //                 entries win and the giveaway ends immediately. `endAt` is
-  //                 then only the deadline for the case that nobody clicks.
+  //                 then only the deadline for the case that nobody klickt.
   // Bonus entries have no effect in FIRST_CLICK: the order decides there, not
   // the weight. That is why the embed hides them in this mode.
   winnerMode   String    @default("RANDOM") // RANDOM | FIRST_CLICK
@@ -165,7 +165,12 @@ model Entry {
   giveawayId String
   userId     String
   joinedAt   DateTime @default(now())
-  giveaway   Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+
+  // After Dark Entertainment – Ticket System
+  ticketWeight Int     @default(1)
+  ticketRoleId String?
+
+  giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
 
   @@id([giveawayId, userId])
   // FIRST_CLICK reads the entries in click order. Without this index that is a
@@ -174,16 +179,4 @@ model Entry {
   @@index([giveawayId, joinedAt])
 }
 
-model Winner {
-  giveawayId String
-  userId     String
-  rerolled   Boolean  @default(false)
-  /// Slot im `prizes`-Array des Giveaways (nur bei prizeMode = INDIVIDUAL).
-  /// null = der Gewinner bekommt alle Preise. Beim Reroll erbt der Ersatz den
-  /// Slot des Ersetzten, damit sich die Zuordnung nicht verschiebt.
-  prizeIndex Int?
-  pickedAt   DateTime @default(now())
-  giveaway   Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
-
-  @@id([giveawayId, userId])
-}
+model
