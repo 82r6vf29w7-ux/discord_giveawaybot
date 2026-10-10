@@ -1,6 +1,8 @@
+
 // After Dark Entertainment - Raffle Participation
 
 import { MessageFlags } from 'discord.js';
+
 import {
   getGiveaway,
   addOrRemoveEntry,
@@ -9,6 +11,7 @@ import {
 } from '../../services/giveawayService.js';
 
 import { getSettings } from '../../services/settingsService.js';
+
 import {
   checkEligibility,
   resolveGiveawayEligibility,
@@ -85,6 +88,7 @@ export default {
     }
 
     const fast = isFirstClick(giveaway);
+
     let action;
 
     try {
