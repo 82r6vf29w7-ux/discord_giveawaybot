@@ -1,7 +1,6 @@
 // After Dark Entertainment - Raffle Participation
 
 import { MessageFlags } from 'discord.js';
-
 import {
   getGiveaway,
   addOrRemoveEntry,
@@ -10,7 +9,6 @@ import {
 } from '../../services/giveawayService.js';
 
 import { getSettings } from '../../services/settingsService.js';
-
 import {
   checkEligibility,
   resolveGiveawayEligibility,
@@ -76,7 +74,6 @@ export default {
       });
     }
 
-    // Verify that the participant has exactly one valid ticket.
     const ticket = getRaffleTicket(member);
 
     if (!ticket) {
@@ -88,17 +85,45 @@ export default {
     }
 
     const fast = isFirstClick(giveaway);
+    let action;
 
-    // Save the ticket role and its weight for this giveaway.
-    const action = await addOrRemoveEntry(
-      id,
-      interaction.user.id,
-      {
-        toggle: !fast,
-        ticketWeight: ticket.weight,
-        ticketRoleId: ticket.roleId,
-      }
-    );
+    try {
+      action = await addOrRemoveEntry(
+        id,
+        interaction.user.id,
+        {
+          toggle: !fast,
+          ticketWeight: ticket.weight,
+          ticketRoleId: ticket.roleId,
+        }
+      );
+    } catch (err) {
+      logger.error(`addOrRemoveEntry(${id}):`, err);
+
+      return interaction.reply({
+        content:
+          'Could not register your entry. Please try again.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    const errors = {
+      ticket_in_use:
+        'Your raffle ticket is already reserved for another active raffle.',
+      busy:
+        'Your ticket is being processed. Please try again.',
+      invalid_ticket:
+        'Your raffle ticket is not valid.',
+      not_active:
+        'This raffle is no longer active.',
+    };
+
+    if (errors[action]) {
+      return interaction.reply({
+        content: errors[action],
+        flags: MessageFlags.Ephemeral,
+      });
+    }
 
     const key = {
       added: 'join.success',
@@ -106,19 +131,25 @@ export default {
       already: 'join.already',
     }[action];
 
+    const content =
+      action === 'added'
+        ? `You joined the raffle with your ${ticket.name} (${ticket.weight} entries)!`
+        : t(guildId, key);
+
     if (fast) {
       const reply = interaction.reply({
-        content:
-          action === 'added'
-            ? `You joined the raffle with your ${ticket.name} (${ticket.weight} entries)!`
-            : t(guildId, key),
+        content,
         flags: MessageFlags.Ephemeral,
       });
 
       endIfFirstClickComplete(client, giveaway)
         .then((ended) => {
           if (ended === null) {
-            scheduleEmbedRefresh(client, giveaway, settings);
+            scheduleEmbedRefresh(
+              client,
+              giveaway,
+              settings
+            );
           }
         })
         .catch((err) => {
@@ -131,13 +162,14 @@ export default {
       return reply;
     }
 
-    scheduleEmbedRefresh(client, giveaway, settings);
+    scheduleEmbedRefresh(
+      client,
+      giveaway,
+      settings
+    );
 
     return interaction.reply({
-      content:
-        action === 'added'
-          ? `You joined the raffle with your ${ticket.name} (${ticket.weight} entries)!`
-          : t(guildId, key),
+      content,
       flags: MessageFlags.Ephemeral,
     });
   },
