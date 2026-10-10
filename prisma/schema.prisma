@@ -1,5 +1,5 @@
 // Prisma schema — Discord Giveaway Bot
-// MariaDB spricht das MySQL-Protokoll -> provider = "mysql".
+// MariaDB / MySQL
 
 generator client {
   provider = "prisma-client-js"
@@ -11,35 +11,31 @@ datasource db {
 }
 
 model GuildSettings {
-  guildId       String   @id // Discord Guild Snowflake
-  lang          String   @default("en")
-  embedColor    String   @default("#00e676") // Hex (MSK Grün)
-  buttonEmoji   String   @default("🎉")
-  buttonStyle   String   @default("PRIMARY") // PRIMARY|SECONDARY|SUCCESS|DANGER
-  blacklist     String   @default("[]") @db.Text // JSON-Array von Role-IDs (dürfen NICHT teilnehmen)
-  whitelist     String   @default("[]") @db.Text // JSON-Array von Role-IDs (≥1 nötig, leer = keine Pflicht)
-  bonusRoles    String   @default("{}") @db.Text // JSON-Objekt RoleId -> Bonus-Lose (gewichtete Ziehung)
-  minAccountDays Int     @default(0) // Mindest-Account-Alter in Tagen (0 = aus)
-  minMemberDays Int      @default(0) // Mindest-Server-Zugehörigkeit in Tagen (0 = aus)
-  managerRole   String? // optional: Rolle, die Giveaways verwalten darf
-  notifyRole    String? // optional: Rolle, die beim Start gepingt wird
-  logChannel    String? // optional: Channel für Giveaway-Logs
-  reminderMinutes Int    @default(0) // "Ending soon"-Reminder X Min. vor Ende (0 = aus)
-  claimMessage  String?  @db.Text // optional: Hinweistext in der Gewinner-DM ("So holst du deinen Preis ab")
+  guildId         String   @id
+  lang            String   @default("en")
+  embedColor      String   @default("#00e676")
+  buttonEmoji     String   @default("🎉")
+  buttonStyle     String   @default("PRIMARY")
+  blacklist       String   @default("[]") @db.Text
+  whitelist       String   @default("[]") @db.Text
+  bonusRoles      String   @default("{}") @db.Text
+  minAccountDays  Int      @default(0)
+  minMemberDays   Int      @default(0)
+  managerRole     String?
+  notifyRole      String?
+  logChannel      String?
+  reminderMinutes Int      @default(0)
+  claimMessage    String?  @db.Text
 
-  // ── Tebex-Store der Guild (für automatische Gewinner-Coupons) ──────────────
-  // Jede Guild hat ihren EIGENEN Store, der Bot ist nicht an msk-scripts.de
-  // gebunden. Das Plugin-Secret liegt AES-256-GCM-verschlüsselt hier (Schlüssel
-  // in TEBEX_SECRET_KEY, also außerhalb der DB), siehe utils/secretBox.js.
-  // Nur der Guild-Besitzer darf es setzen, ansehen oder löschen.
-  tebexSecret      String?   @db.Text // verschlüsselter Blob "v1:iv:ct:tag", NIE Klartext
-  tebexSecretHint  String? // letzte 4 Zeichen, für die maskierte Anzeige
-  tebexSecretSetAt DateTime? // wann zuletzt hinterlegt
-  tebexPublicToken String? // öffentlicher Headless-Token, nur zum Auflisten der Pakete
-  tebexStoreUrl    String? // Store-Adresse für den Einlöse-Link in der Gewinner-DM
+  // Tebex
+  tebexSecret      String?   @db.Text
+  tebexSecretHint  String?
+  tebexSecretSetAt DateTime?
+  tebexPublicToken String?
+  tebexStoreUrl    String?
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model GiveawayTemplate {
@@ -48,92 +44,62 @@ model GiveawayTemplate {
   name         String
   title        String
   description  String   @db.Text
-  duration     String // z.B. "1d2h30m"
+  duration     String
   winnersCount Int      @default(1)
-  // Preisliste wie bei Giveaway: JSON-Array + Verteilmodus. Ohne die beiden
-  // könnte eine Vorlage seit v1.5.0 nicht mehr abbilden, was ein Giveaway
-  // ausmacht, und /gtemplate use legte eines ganz ohne Preise an.
   prizes       String   @default("[]") @db.Text
   prizeMode    String   @default("ALL")
-  // How the winners are determined, see Giveaway.winnerMode. It belongs in the
-  // template because the quick giveaways (crate keys, event prizes) are exactly
-  // the ones people repeat, and the mode is what makes them that.
   winnerMode   String   @default("RANDOM")
-  // Teilnahmebedingungen wie beim Giveaway, mit derselben Bedeutung von NULL:
-  // NULL = die Vorlage sagt nichts dazu, das daraus erzeugte Giveaway übernimmt
-  // die serverweite Einstellung. Gesetzt = die Vorlage bringt ihre eigene mit.
+
   blacklistRoles String? @db.Text
   whitelistRoles String? @db.Text
   bonusRoles     String? @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([guildId, name])
 }
 
 model Giveaway {
-  id           String    @id // kurze öffentliche ID, z.B. "A1B2C3"
-  guildId      String
-  channelId    String
-  messageId    String? // Nachricht mit Embed + Button
-  hostId       String // wer hat erstellt
-  title        String
-  description  String    @db.Text
-  // ── Preise ─────────────────────────────────────────────────────────────────
-  // Ein Giveaway kann mehrere Preise haben. `prizeMode` entscheidet, wie sie
-  // verteilt werden:
-  //   ALL        = jeder Gewinner bekommt alle Preise
-  //   INDIVIDUAL = Gewinner N bekommt Preis N, deshalb ist winnersCount dort
-  //                immer die Anzahl der Preise (siehe utils/prizes.js).
-  prizes       String    @default("[]") @db.Text // JSON-Array von Preis-Texten
-  prizeMode    String    @default("ALL") // ALL | INDIVIDUAL
-  // ── How the winners are determined ─────────────────────────────────────────
-  //   RANDOM      = a draw at the end (Fisher-Yates, with bonus entries)
-  //   FIRST_CLICK = whoever clicks first wins. The first `winnersCount` valid
-  //                 entries win and the giveaway ends immediately. `endAt` is
-  //                 then only the deadline for the case that nobody klickt.
-  // Bonus entries have no effect in FIRST_CLICK: the order decides there, not
-  // the weight. That is why the embed hides them in this mode.
-  winnerMode   String    @default("RANDOM") // RANDOM | FIRST_CLICK
-  winnersCount Int       @default(1)
+  id          String   @id
+  guildId     String
+  channelId   String
+  messageId   String?
+  hostId      String
+  title       String
+  description String   @db.Text
+
+  // Prizes
+  prizes       String @default("[]") @db.Text
+  prizeMode    String @default("ALL")
+  winnerMode   String @default("RANDOM")
+  winnersCount Int    @default(1)
+
+  // Status
   endAt        DateTime
-  status       String    @default("ACTIVE") // ACTIVE | PAUSED | ENDED | CANCELLED
-  pausedAt     DateTime? // Zeitpunkt der Pausierung (zum Verlängern von endAt beim Resume)
-  reminderAt   DateTime? // Zeitpunkt für den "Ending soon"-Reminder (null = kein Reminder)
-  reminderSent Boolean   @default(false) // ob der Reminder schon gepostet wurde
-  // ── Teilnahmebedingungen dieses Giveaways ──────────────────────────────────
-  // NULL heißt "nichts eigenes gesetzt", dann gilt die serverweite Einstellung
-  // aus GuildSettings. Ist ein Feld gesetzt, ERSETZT es die serverweite für
-  // dieses Giveaway — auch als leere Liste, das ist dann ein bewusstes "hier
-  // gilt keine". Die drei Felder sind unabhängig: ein Giveaway kann die
-  // Blacklist überschreiben und die Bonus-Lose weiter erben.
-  blacklistRoles String? @db.Text // JSON-Array von Role-IDs
-  whitelistRoles String? @db.Text // JSON-Array von Role-IDs
-  bonusRoles     String? @db.Text // JSON-Objekt RoleId->Bonus-Lose
-  // ── Automatischer Tebex-Coupon für die Gewinner ────────────────────────────
-  // Pro Giveaway konfiguriert (nur im Web-Dashboard). Jeder Gewinner bekommt
-  // einen EIGENEN Code. couponPercent = null schaltet das Feature für dieses
-  // Giveaway ab.
-  couponPercent   Int? // Rabatt in Prozent (1-100)
-  couponPackages  String @default("[]") @db.Text // JSON-Array von Tebex-Paket-IDs; leer = ganzer Warenkorb
-  /// Paketauswahl je Preis-Slot: JSON-Array von Arrays, gleich indiziert wie
-  /// `prizes`. Nur bei prizeMode = INDIVIDUAL sinnvoll, denn nur dort gibt es
-  /// überhaupt einen "Gewinner N". Ein leerer Slot fällt auf `couponPackages`
-  /// zurück, siehe services/tebexService.js.
-  couponPackagesPerPrize String @default("[]") @db.Text
-  couponValidDays Int? // Gültigkeit in Tagen ab Ziehung; null = läuft nie ab
+  status       String    @default("ACTIVE")
+  pausedAt     DateTime?
+  reminderAt   DateTime?
+  reminderSent Boolean   @default(false)
 
-  // ── Manuell eingetragene Codes ─────────────────────────────────────────────
-  // Für Codes aus einem FREMDEN Shop (gemeinsames Giveaway mit einem anderen
-  // Entwickler). Der Bot erzeugt sie nicht, er stellt sie nur zu, und er kann
-  // sie deshalb auch nicht widerrufen. Brauchen kein Store-Secret und haben für
-  // den betroffenen Gewinner Vorrang vor dem selbst erzeugten Coupon.
-  couponManualCode String? // gilt für alle Gewinner
-  couponManualCodesPerPrize String @default("[]") @db.Text // JSON-Array von Codes, wie `prizes` indiziert
-  couponManualNote String? @db.Text // Hinweis in der DM, z.B. wo der Code einzulösen ist
+  // Eligibility
+  blacklistRoles String? @db.Text
+  whitelistRoles String? @db.Text
+  bonusRoles     String? @db.Text
 
-  createdAt    DateTime  @default(now())
-  endedAt      DateTime?
+  // Tebex coupons
+  couponPercent          Int?
+  couponPackages         String  @default("[]") @db.Text
+  couponPackagesPerPrize String  @default("[]") @db.Text
+  couponValidDays        Int?
+
+  // Manual coupon codes
+  couponManualCode          String?
+  couponManualCodesPerPrize String  @default("[]") @db.Text
+  couponManualNote          String? @db.Text
+
+  createdAt DateTime  @default(now())
+  endedAt   DateTime?
 
   entries Entry[]
   winners Winner[]
@@ -143,19 +109,21 @@ model Giveaway {
   @@index([status, endAt])
 }
 
-/// Ein ausgestellter Tebex-Coupon, ein Datensatz pro Gewinner.
-/// `tebexId` wird gebraucht, um den Code beim Reroll wieder zu widerrufen —
-/// sonst behielte ein ersetzter Gewinner seinen Rabatt.
 model GiveawayCoupon {
   giveawayId String
   userId     String
   code       String
-  tebexId    Int? // ID im Tebex-Store, für den Widerruf
-  percent    Int // was tatsächlich ausgestellt wurde
-  expiresAt  DateTime? // null = läuft nie ab
-  revokedAt  DateTime? // beim Reroll gesetzt
-  createdAt  DateTime  @default(now())
-  giveaway   Giveaway  @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+  tebexId    Int?
+  percent    Int
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  giveaway Giveaway @relation(
+    fields: [giveawayId],
+    references: [id],
+    onDelete: Cascade
+  )
 
   @@id([giveawayId, userId])
   @@index([code])
@@ -166,17 +134,35 @@ model Entry {
   userId     String
   joinedAt   DateTime @default(now())
 
-  // After Dark Entertainment – Ticket System
+  // After Dark Entertainment - Ticket System
+  // Standard: 1 chance
+  // Priority: 3 chances
+  // Premium: 5 chances
+  // Deluxe: 7 chances
   ticketWeight Int     @default(1)
   ticketRoleId String?
 
-  giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+  giveaway Giveaway @relation(
+    fields: [giveawayId],
+    references: [id],
+    onDelete: Cascade
+  )
 
   @@id([giveawayId, userId])
-  // FIRST_CLICK reads the entries in click order. Without this index that is a
-  // filesort over every entry of the giveaway, at the exact moment the mode
-  // promises to be fast.
   @@index([giveawayId, joinedAt])
 }
 
+model Winner {
+  giveawayId String
+  userId     String
+  prizeIndex Int      @default(0)
+  drawnAt    DateTime @default(now())
 
+  giveaway Giveaway @relation(
+    fields: [giveawayId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  @@id([giveawayId, userId])
+}
